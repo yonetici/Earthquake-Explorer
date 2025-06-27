@@ -43,7 +43,7 @@ from folium.plugins import Draw
 import pandas as pd
 import requests
 from shapely.geometry import shape, Point
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 API_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query"
@@ -156,7 +156,7 @@ def main():
 
     # Sidebar: Filters
     st.sidebar.header("🔎 Query Filters")
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     default_start = today - timedelta(days=2)
     default_end = today
     # Use session_state for inputs so filters persist
