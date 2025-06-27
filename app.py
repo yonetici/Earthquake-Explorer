@@ -1,12 +1,12 @@
 """
 Earthquake Explorer: Interactive Earthquake Data Viewer (USGS API)
 ==================================================================
-Author: Ridvan Bilgin
+Author: Ridvan BİLGİN
 Date: 2025-06-25
 
 Description:
 ------------
-This Streamlit app lets users visually query and analyze recent earthquakes using the USGS Earthquake API. 
+This Streamlit app lets users visually query and analyze recent earthquakes using the USGS Earthquake API.
 Features include:
 
 - Magnitude and date range filters.
@@ -78,14 +78,9 @@ def normalize_data(geojson: Dict[str, Any]) -> pd.DataFrame:
     df['latitude'] = df['coordinates'].apply(lambda x: x[1])
     df['depth_km'] = df['coordinates'].apply(lambda x: x[2] if len(x) > 2 else None)
     # Create clickable link for USGS event
-    if 'url' not in df.columns:
-        df['url'] = ''
-    df['details'] = df.apply(
-        lambda row: f'<a href="{row["url"]}" target="_blank">Detail</a>' if pd.notna(row.get("url", "")) and row.get("url", "") != "" else "",
-        axis=1
-    )
+    df['details'] = df.apply(lambda row: f'<a href="{row["url"]}" target="_blank">Detail</a>', axis=1)
     cols = ['time_utc', 'magnitude', 'place', 'latitude', 'longitude', 'depth_km', 'alert_level', 'url', 'details']
-    cols = [c for c in cols if c in df.columns]  # Only keep existing
+    cols = [c for c in cols if c in df.columns]  # Select only present columns
     return df[cols]
 
 def filter_with_polygons(df: pd.DataFrame, polygons: List[Dict]) -> pd.DataFrame:
@@ -128,9 +123,11 @@ def get_bounding_box(polygons: List[Dict]) -> Optional[Dict[str, float]]:
         'maxlongitude': max(lons)
     }
 
-def build_map(polygons: Optional[List[Dict]]) -> Dict[str, Any]:
-    """Build Folium map with drawing controls, return st_folium result."""
+def build_map(polygons: Optional[List[Dict]], earthquakes_df: Optional[pd.DataFrame]) -> Dict[str, Any]:
+    """Build Folium map with drawing controls and earthquake markers."""
     m = folium.Map(location=[39, 35], zoom_start=2, control_scale=True)
+
+    # Draw controls
     draw = Draw(
         export=True,
         filename='polygons.geojson',
@@ -145,9 +142,28 @@ def build_map(polygons: Optional[List[Dict]]) -> Dict[str, Any]:
         edit_options={'edit': True, 'remove': True}
     )
     draw.add_to(m)
+
+    # Existing polygons
     if polygons:
         for poly in polygons:
             folium.GeoJson(poly).add_to(m)
+
+    # Earthquake markers
+    if earthquakes_df is not None and not earthquakes_df.empty:
+        for _, row in earthquakes_df.iterrows():
+            popup = folium.Popup(
+                f"<b>{row['place']}</b><br>Magnitude: {row['magnitude']}<br><a href='{row['url']}' target='_blank'>Details</a>",
+                max_width=300
+            )
+            folium.CircleMarker(
+                location=(row['latitude'], row['longitude']),
+                radius=4 + row['magnitude'],
+                color="red",
+                fill=True,
+                fill_opacity=0.7,
+                popup=popup
+            ).add_to(m)
+
     return st_folium(m, height=500, width=800, returned_objects=['all_drawings'])
 
 def main():
@@ -179,7 +195,7 @@ def main():
 
     # Map drawing widget
     st.subheader("1. Select region (draw polygons/rectangles)")
-    map_result = build_map(None)
+    map_result = build_map(None, None)
     polygons = map_result.get('all_drawings', [])
 
     st.subheader("2. Set filters & click to list earthquakes")
@@ -220,14 +236,15 @@ def main():
 
     # Display results
     if not df.empty:
-        st.subheader("3. Results Table")
+        st.subheader("3. Earthquake Map with Markers")
+        build_map(polygons, df)
         # Show with clickable HTML links
         styled_df = df.copy()
         styled_df['place'] = styled_df.apply(
             lambda row: f'<a href="{row["url"]}" target="_blank">{row["place"]}</a>'
-            if pd.notna(row.get("place")) and pd.notna(row.get("url", None)) and row.get("url", "") != "" 
-            else (row.get("place", "") or ""), axis=1
+            if pd.notna(row.get("place")) and pd.notna(row.get("url", None)) else (row.get("place", "") or ""), axis=1
         )
+
         # Only show columns for display
         display_cols = ['time_utc', 'magnitude', 'place', 'latitude', 'longitude', 'depth_km', 'alert_level', 'details']
         st.markdown(
@@ -236,11 +253,9 @@ def main():
         )
         with st.expander("Download results"):
             st.download_button("Export as CSV", data=styled_df.to_csv(index=False), file_name="earthquakes.csv", mime="text/csv")
-            
-            # Remove timezone info for Excel compatibility
+            # Remove timezone info for Excel
             if "time_utc" in styled_df.columns:
                 styled_df["time_utc"] = styled_df["time_utc"].dt.tz_localize(None)
-            
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 styled_df.to_excel(writer, index=False)
