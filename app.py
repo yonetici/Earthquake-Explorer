@@ -81,7 +81,7 @@ def normalize_data(geojson: Dict[str, Any]) -> pd.DataFrame:
     if 'url' not in df.columns:
         df['url'] = ''
     df['details'] = df.apply(
-        lambda row: f'<a href="{row["url"]}" target="_blank">Detay</a>' if pd.notna(row.get("url", "")) and row.get("url", "") != "" else "",
+        lambda row: f'<a href="{row["url"]}" target="_blank">Detail</a>' if pd.notna(row.get("url", "")) and row.get("url", "") != "" else "",
         axis=1
     )
     cols = ['time_utc', 'magnitude', 'place', 'latitude', 'longitude', 'depth_km', 'alert_level', 'url', 'details']
